@@ -1,0 +1,23 @@
+{
+  "name": "hubspot-cti-plugin",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "postinstall": "bash ../../scripts/postinstall-deps.sh && flex-plugin pre-script-check",
+    "dev": "twilio flex:plugins:start",
+    "build": "flex-plugin build"
+  },
+  "dependencies": {
+    "@twilio/flex-plugin": "7.1.2",
+    "prop-types": "^15.7.2",
+    "react": "17.0.2",
+    "react-dom": "17.0.2"
+  },
+  "devDependencies": {
+    "@twilio/flex-plugin-scripts": "7.1.2",
+    "@twilio/flex-ui": "2.13.3",
+    "@types/react": "^17.0.2",
+    "tsconfig-paths-webpack-plugin": "^4.2.0",
+    "typescript": "^4"
+  }
+}

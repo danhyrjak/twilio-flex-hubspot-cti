@@ -1,0 +1,1 @@
+export const HELLO_MSG = "Hello World!";

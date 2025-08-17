@@ -1,0 +1,19 @@
+{
+  "name": "twilio-flex-hubspot-cti",
+  "version": "1.0.0",
+  "license": "MIT",
+  "packageManager": "yarn@4.9.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "postinstall": "patch-package"
+  },
+  "resolutions": {
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.0"
+  }
+}

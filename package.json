@@ -11,7 +11,8 @@
     "postinstall": "patch-package"
   },
   "resolutions": {
-    "zod": "^4.0.17"
+    "zod": "3.23.8",
+    "@hubspot/calling-extensions-sdk": "^0.9.4"
   },
   "devDependencies": {
     "patch-package": "^8.0.0"

@@ -4,7 +4,7 @@
     "baseUrl": "src",
     "rootDir": ".",
     "outDir": "build",
-    "target": "es2019",
+    "target": "es2022",
     "lib": [
       "dom",
       "dom.iterable",

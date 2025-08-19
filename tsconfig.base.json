@@ -1,9 +1,6 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": {
-      "@twilio-flex-hubspot-cti/shared/*": ["./packages/shared/*"]
-    },
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true

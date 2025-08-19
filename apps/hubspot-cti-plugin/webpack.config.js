@@ -8,7 +8,6 @@ const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 module.exports = (config, { isProd, isDev, isTest }) => {
   config.resolve.plugins.push(
     new TsconfigPathsPlugin({
-      baseUrl: "../..",
       configFile: './tsconfig.json',
       extensions: ['.ts', '.tsx', '.js'],
     })

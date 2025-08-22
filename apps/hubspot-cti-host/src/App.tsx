@@ -5,6 +5,7 @@ import { OnReadyEventSchema } from "./schemas/hubspotEvents";
 import { useEffect, useState, type FC } from 'react';
 import { ulid } from "ulidx";
 import './App.css'
+import { FlexEventSchema } from "apps/shared/dist";
 
 type RemoteInfo = {
   lastPingRecievedAt: Date;
@@ -110,20 +111,54 @@ const App: FC = () => {
     };
     
     const flexEventListener = (event: MessageEvent<unknown>): void => {
-      if(event.origin !== env.VITE_TWILIO_FLEX_ORIGIN){
+      if(event.origin !== env.VITE_TWILIO_FLEX_ORIGIN) return;
+      const parsedEventResult = FlexEventSchema.safeParse(event.data);
+      if(!parsedEventResult.success){
+        console.error("failed to parse flex event");
+        console.error(parsedEventResult.error);
+        console.log(event.data);
         return;
       }
-      console.log(event);
+      switch(parsedEventResult.data.event){
+        case "IncomingCall": {
+          cti.incomingCall({
+            externalCallId: parsedEventResult.data.callDetails.callSid,
+            fromNumber: parsedEventResult.data.callDetails.fromNumber,
+            toNumber: parsedEventResult.data.callDetails.toNumber,
+            callStartTime: parsedEventResult.data.callDetails.callStartTime.valueOf(),
+            createEngagement: true
+          });
+          return;
+        }
+      default:
+        console.log(`[${new Date().toISOString()}] - ${parsedEventResult.data.event} recieved!`)
+          
+      }
     }
 
     const cti = new CallingExtensions({
       debugMode: true,
       eventHandlers: {
-        onCallerIdMatchFailed: () => { },
-        onCallerIdMatchSucceeded: () => { },
-        onCreateEngagementFailed: () => { },
-        onCreateEngagementSucceeded: () => { },
-        onDialNumber: () => { },
+        onCallerIdMatchFailed: (event: unknown) => { 
+          console.log(`${new Date().toISOString()} onCallerIdMatchFailed fired`);
+          console.log(event);
+        },
+        onCallerIdMatchSucceeded: (event: unknown) => {
+            console.log(`${new Date().toISOString()} onCallerIdMatchSucceeded fired`);
+            console.log(event);
+         },
+        onCreateEngagementFailed: (event: unknown) => { 
+          console.log(`${new Date().toISOString()} onCreateEngagementFailed fired`);
+          console.log(event);
+        },
+        onCreateEngagementSucceeded: (event: unknown) => { 
+          console.log(`${new Date().toISOString()} onCreateEngagementSucceeded fired`);
+          console.log(event);
+        },
+        onDialNumber: (event: unknown) => {
+          console.log(`${new Date().toISOString()} onDialNumber fired`);
+          console.log(event);
+        },
         onEndCall: () => { },
         onEngagementCreated: () => { },
         onInitiateCallIdFailed: () => { },

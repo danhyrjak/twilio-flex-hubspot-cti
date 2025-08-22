@@ -12708,7 +12708,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "hubspot-cti-plugin@workspace:apps/hubspot-cti-plugin"
   dependencies:
-    "@hubspot/calling-extensions-sdk": "npm:^0.9.4"
+    "@twilio-paste/core": "npm:^15.3.1"
+    "@twilio-paste/icons": "npm:^9.2.0"
     "@twilio/flex-plugin": "npm:7.1.2"
     "@twilio/flex-plugin-scripts": "npm:7.1.2"
     "@twilio/flex-ui": "npm:2.13.3"

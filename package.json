@@ -4,11 +4,12 @@
   "license": "MIT",
   "packageManager": "yarn@4.9.2",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
   "scripts": {
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "build:shared": "yarn workspace shared build",
+    "create:tunnel": "./scripts/create-tunnel.sh"
   },
   "resolutions": {
     "zod": "3.23.8",

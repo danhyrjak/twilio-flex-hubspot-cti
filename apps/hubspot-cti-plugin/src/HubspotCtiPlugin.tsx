@@ -1,3 +1,4 @@
+import { HubspotCTIStatusButton } from "./components/HubspotCTIStatusButton";
 import { CustomizationProvider } from "@twilio-paste/core/customization";
 import { HubspotCTIProvider } from "components/HubspotCTIProvider";
 import { Flex } from "@twilio/flex-ui/src/FlexGlobal";
@@ -54,15 +55,13 @@ export default class HubspotCtiPlugin extends FlexPlugin {
       }
     });
 
-    
-
     //hide panel two, window size will be too small within CTI
     flex.AgentDesktopView.defaultProps.showPanel2 = false;
 
-    //TODO: add in some UI component to show current state
-    // flex.MainHeader.Content.add(<IconButton key="next-key" icon="Link" onClick={() => alert("Hi")}></IconButton>, {
-    //   align: "end",
-    //   sortOrder: 1
-    // });
+    //add status button to header
+    flex.MainHeader.Content.add(<HubspotCTIStatusButton key="hubspot-cti-status-button"/>, {
+      align: "end",
+      sortOrder: 1
+    });
   }
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const FlexEventSchema = z.discriminatedUnion("event", [
+    z.object({event: z.literal("PluginLoaded")}),
     z.object({event: z.literal("UserLoggedIn")}),
     z.object({event: z.literal("UserLoggedOut")}),
     z.object({event: z.literal("UserAvailable")}),

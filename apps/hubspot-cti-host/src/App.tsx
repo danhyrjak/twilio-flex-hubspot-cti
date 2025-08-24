@@ -2,10 +2,10 @@ import { BroadcastEventSchema, type  BroadcastEvent } from "./schemas/broadcastE
 import { EnvSchema, type HubspotCTILocation } from "./schemas/shared";
 import CallingExtensions from "@hubspot/calling-extensions-sdk";
 import { OnReadyEventSchema } from "./schemas/hubspotEvents";
-import { useEffect, useState, type FC } from 'react';
+import { useEffect, useRef, useState, type FC } from 'react';
+import { FlexEventSchema, type HubspotEvent } from "shared";
 import { ulid } from "ulidx";
 import './App.css'
-import { FlexEventSchema } from "apps/shared/dist";
 
 type RemoteInfo = {
   lastPingRecievedAt: Date;
@@ -26,6 +26,7 @@ const App: FC = () => {
   const [activeRemotesCount, setActiveRemotesCount] = useState(0);
   const [lastHeardFromWindow, setLastHeardFromWindow] = useState<{id: string, at: Date}>();
   const [lastPolledAt, setLastPolledAt] = useState<Date>();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   
   useEffect(() => {
     const envParseResult = EnvSchema.safeParse(import.meta.env);
@@ -109,6 +110,18 @@ const App: FC = () => {
         }
       }
     };
+
+    const sendEventToFlex = (event: HubspotEvent) => {
+      if(!iframeRef.current?.contentWindow){
+        console.warn("flex iframe contentWindow not yet loaded, cannot send event");
+        console.warn(event);
+        return;
+      }
+
+      iframeRef.current.contentWindow.postMessage(event, {
+        targetOrigin: env.VITE_TWILIO_FLEX_ORIGIN
+      });
+    }
     
     const flexEventListener = (event: MessageEvent<unknown>): void => {
       if(event.origin !== env.VITE_TWILIO_FLEX_ORIGIN) return;
@@ -120,6 +133,10 @@ const App: FC = () => {
         return;
       }
       switch(parsedEventResult.data.event){
+        case "PluginLoaded": {
+          sendEventToFlex({event: "PluginLoadedEventReceived"});
+          return;
+        }
         case "IncomingCall": {
           cti.incomingCall({
             externalCallId: parsedEventResult.data.callDetails.callSid,
@@ -199,6 +216,7 @@ const App: FC = () => {
                 engagementId: eventParseResult.data.engagementId,
                 isLoggedIn: false
               });
+              
               window.addEventListener("message", flexEventListener);
               const flexUrl = new URL(env.VITE_TWILIO_FLEX_ORIGIN);
               flexUrl.pathname = "/agent-dashboard";
@@ -279,7 +297,7 @@ const App: FC = () => {
   }, []);
 
   if(frameUrl){
-    return <iframe src={frameUrl} allow="microphone" title="Flex" height="98%" width="98%" />;
+    return <iframe ref={iframeRef} src={frameUrl} allow="microphone" title="Flex" height="98%" width="98%" />;
   }
 
   return (

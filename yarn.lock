@@ -12697,7 +12697,6 @@ __metadata:
     shared: "workspace:*"
     typescript: "npm:~5.8.3"
     typescript-eslint: "npm:^8.39.1"
-    ulidx: "npm:^2.4.1"
     vite: "npm:^7.1.2"
     vite-tsconfig-paths: "npm:^5.1.4"
     zod: "npm:3.23.8"
@@ -14656,13 +14655,6 @@ __metadata:
     picocolors: "npm:^1.1.1"
     shell-quote: "npm:^1.8.3"
   checksum: 10c0/b1aad04eef3a675aa35e82498bedaaeb790b9a02834a9cff79987dd7c6f5d92fd8f79ff7a8a4cd61681e0d462069de30d0bc65b41a936a7e3d700a4fdac1090e
-  languageName: node
-  linkType: hard
-
-"layerr@npm:^3.0.0":
-  version: 3.0.0
-  resolution: "layerr@npm:3.0.0"
-  checksum: 10c0/320c9b9cf1392c73c9ff8f8d1bb7a782093ac7341fe5d7fea6ebfeea6d785af8e0fc573541431b6ffcb268577f8aea66168757e73a15035568a00ab9e4370705
   languageName: node
   linkType: hard
 
@@ -20533,15 +20525,6 @@ __metadata:
   bin:
     uglifyjs: bin/uglifyjs
   checksum: 10c0/83b0a90eca35f778e07cad9622b80c448b6aad457c9ff8e568afed978212b42930a95f9e1be943a1ffa4258a3340fbb899f41461131c05bb1d0a9c303aed8479
-  languageName: node
-  linkType: hard
-
-"ulidx@npm:^2.4.1":
-  version: 2.4.1
-  resolution: "ulidx@npm:2.4.1"
-  dependencies:
-    layerr: "npm:^3.0.0"
-  checksum: 10c0/3cbe05123b4b49d262e26cd0edd3ac38a4f9e97f043d47ae7daa88502748881d1615d832e3bcb29698ca2429947c24494929ba35b40d6bf38df891cb15642d2e
   languageName: node
   linkType: hard
 

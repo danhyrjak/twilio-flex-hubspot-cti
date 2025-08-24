@@ -1,32 +1,43 @@
-import { BroadcastEventSchema, type  BroadcastEvent } from "./schemas/broadcastEvents";
-import { EnvSchema, type HubspotCTILocation } from "./schemas/shared";
 import CallingExtensions from "@hubspot/calling-extensions-sdk";
-import { OnReadyEventSchema } from "./schemas/hubspotEvents";
 import { useEffect, useRef, useState, type FC } from 'react';
 import { FlexEventSchema, type HubspotEvent } from "shared";
-import { ulid } from "ulidx";
+import { z } from "zod";
 import './App.css'
 
-type RemoteInfo = {
-  lastPingRecievedAt: Date;
-  dc: BroadcastChannel
-}
+const EnvSchema = z.object({
+  VITE_TWILIO_FLEX_ORIGIN: z.string().url()
+});
 
-const broadcastEvent = (toChannel: BroadcastChannel, event: BroadcastEvent) => {
-  toChannel.postMessage(event);
-}
+const HubspotCTILocationSchema = z.literal("window").or(z.literal("remote"));
+type HubspotCTILocation = z.infer<typeof HubspotCTILocationSchema>;
+
+const BroadcastOnlyEventSchema = z.object({
+  event: z.literal("RemoteReady")
+}).or(z.object({
+  event: z.literal("WindowStatusUpdate"),
+  data: z.object({
+    status: z.boolean()
+  })
+}));
+const BroadcastEventSchema = FlexEventSchema.or(BroadcastOnlyEventSchema);
+type BroadcastEvent = z.infer<typeof BroadcastEventSchema>;
+
+const OnReadyEventSchema = z.object({
+    engagementId: z.number().optional(),
+    hostUrl: z.string().optional(),
+    iframeLocation: HubspotCTILocationSchema,
+    portalId: z.number(),
+    userId: z.number()
+});
 
 const App: FC = () => {
   const [status, setStatus] = useState<"pending"|"ready"|"error">("pending");
   const [errorMessage, setErrorMessage] = useState("");
-  const [iframeId, setIframeId] = useState<string>();
   const [iframeLocation, setIframeLocation] = useState<HubspotCTILocation>();
-  const [frameUrl, setFrameUrl] = useState<string>();
-  const [hostUrl, setHostUrl] = useState<string>();
-  const [activeRemotesCount, setActiveRemotesCount] = useState(0);
-  const [lastHeardFromWindow, setLastHeardFromWindow] = useState<{id: string, at: Date}>();
-  const [lastPolledAt, setLastPolledAt] = useState<Date>();
+  const [iframeUrl, setIframeUrl] = useState<string>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [hostUrl, setHostUrl] = useState<string>();
+  const [lastHeardFromWindow, setLastHeardFromWindow] = useState<Date>();
   
   useEffect(() => {
     const envParseResult = EnvSchema.safeParse(import.meta.env);
@@ -37,32 +48,13 @@ const App: FC = () => {
       return;
     }
     const env = envParseResult.data;
-    const sourceId = ulid();
-    setIframeId(sourceId);
     let sourceLocation: HubspotCTILocation|undefined;
-    const CHANNEL_PREFIX = "twilio-flex-hubspot-cti_";
-    const generateRemoteChannelName = (key: string) => {
-      return `${CHANNEL_PREFIX}remote_${key}`;
+    const bc = new BroadcastChannel("twilio-flex-hubspot-cti");
+    
+    const broadcastEvent = (event: BroadcastEvent) => {
+      bc.postMessage(event);
     }
-    const bc = new BroadcastChannel(`${CHANNEL_PREFIX}broadcast`);
-    const knownRemotes: Map<string, RemoteInfo> = new Map();
-
-    const getOrAddRemote = (key: string):RemoteInfo => {
-      let remote = knownRemotes.get(key);
-      if(!remote){
-        knownRemotes.set(key, {
-          dc: new BroadcastChannel(generateRemoteChannelName(key)),
-          lastPingRecievedAt: new Date()
-        });
-        setActiveRemotesCount(knownRemotes.size);
-        remote = knownRemotes.get(key);
-        if(!remote){
-          throw new Error("failed to get remote");
-        }
-      }
-      return remote;
-    }
-
+    
     bc.onmessage = (messageEvent: MessageEvent<unknown>) => {
       const eventParseResult = BroadcastEventSchema.safeParse(messageEvent.data);
       if(!eventParseResult.success){
@@ -72,41 +64,29 @@ const App: FC = () => {
       }
       const e = eventParseResult.data;
       switch(e.event){
-        case "READY":{
-          if(e.sourceLocation === "window"){
-            if(sourceLocation === "remote"){
-              //do a PING, we have a new window thats ready
-              broadcastEvent(bc, {
-                event: "PING",
-                sourceId,
-                sourceLocation
-              });
-            }else{
-              console.warn("Unexpected. Received ready event from another window?", e);
-            }
-          }else if(e.sourceLocation === "remote"){
-            if(sourceLocation === "window"){
-              //new remote, add it
-              getOrAddRemote(e.sourceId); 
-            }
+        case "RemoteReady":{
+          if(sourceLocation !== "window"){
+            return;
           }
+          broadcastEvent({
+            event: "WindowStatusUpdate",
+            data: {
+              status: true
+            }
+          });
           return;
         }
-        case "PING":{
-          if(e.sourceLocation === "remote" && sourceLocation === "window"){
-            const remote = getOrAddRemote(e.sourceId);
-            remote.lastPingRecievedAt = new Date();
-            broadcastEvent(remote.dc, {
-              event: "PONG",
-              sourceId,
-              sourceLocation
-            });
+        case "WindowStatusUpdate": {
+          if(sourceLocation !== "remote"){
+            return;
           }
+          setLastHeardFromWindow(new Date());
           return;
         }
-        case "PONG":{
-          console.log("unexpected PONG on broadcast channel");
-          return;
+        default: {
+          console.warn("broadcast event not handled: ", e);
+          //const exhaustiveCheck: never = e;
+          //console.error("unhandled broadvsast event type", exhaustiveCheck);
         }
       }
     };
@@ -204,12 +184,6 @@ const App: FC = () => {
           sourceLocation = eventParseResult.data.iframeLocation;
           setIframeLocation(sourceLocation);
 
-          broadcastEvent(bc, {
-            event: "READY",
-            sourceId,
-            sourceLocation
-          });
-
           switch(sourceLocation){
             case "window": {
               cti.initialized({
@@ -220,22 +194,11 @@ const App: FC = () => {
               window.addEventListener("message", flexEventListener);
               const flexUrl = new URL(env.VITE_TWILIO_FLEX_ORIGIN);
               flexUrl.pathname = "/agent-dashboard";
-              setFrameUrl(flexUrl.toString());
+              setIframeUrl(flexUrl.toString());
               return;
             }
             case "remote": {
-              const rc = new BroadcastChannel(generateRemoteChannelName(sourceId));
-              rc.onmessage = (messageEvent: MessageEvent<unknown>) => {
-                const eventParseResult = BroadcastEventSchema.safeParse(messageEvent.data);
-                if(!eventParseResult.success){
-                  console.error("failed to parse event in dc channel handler");
-                  console.error(eventParseResult.error);
-                  return;
-                }
-                if(eventParseResult.data.sourceLocation === "window" && eventParseResult.data.event === "PONG"){
-                  setLastHeardFromWindow({id: eventParseResult.data.sourceId, at: new Date()}); 
-                }
-              };
+              broadcastEvent({event: "RemoteReady"});
               cti.resizeWidget({
                 width: 565,
                 height: 430
@@ -258,46 +221,14 @@ const App: FC = () => {
       }
     });
 
-    const refreshInterval = window.setInterval(() => {
-      setLastPolledAt(new Date());
-      
-      if(sourceLocation === "remote"){
-        broadcastEvent(bc, {
-          event: "PING",
-          sourceId,
-          sourceLocation
-        });
-        return;
-      }
-      
-      if(sourceLocation === "window"){
-        const tenSecondsAgo = new Date();
-        tenSecondsAgo.setSeconds(tenSecondsAgo.getSeconds() - 10);
-        const keysToRemove: string[] = [];
-        knownRemotes.forEach((value, key) => {
-          if(value.lastPingRecievedAt < tenSecondsAgo){
-            keysToRemove.push(key);
-          }
-        });
-        if(keysToRemove.length > 0){
-          keysToRemove.forEach((key) => {
-            knownRemotes.delete(key);
-          });
-          setActiveRemotesCount(knownRemotes.size);
-        }
-        return;
-      }
-    }, 5000);
-
     return () => {
       bc.close();
       window.removeEventListener("message", flexEventListener);
-      window.clearInterval(refreshInterval);
     }
   }, []);
 
-  if(frameUrl){
-    return <iframe ref={iframeRef} src={frameUrl} allow="microphone" title="Flex" height="98%" width="98%" />;
+  if(iframeUrl){
+    return <iframe ref={iframeRef} src={iframeUrl} allow="microphone" title="Flex" height="98%" width="98%" />;
   }
 
   return (
@@ -306,11 +237,8 @@ const App: FC = () => {
       <p>status: <b>{status}</b></p>
       {errorMessage ? <p>errorMessage: {errorMessage}</p> : null}
       <p>iframeLocation: <b>{iframeLocation}</b></p>
-      <p>iframeId: <b>{iframeId}</b></p>
       {iframeLocation === "remote" && !lastHeardFromWindow ? <p>Window Not Connected</p> : null}
-      {iframeLocation === "remote" && lastHeardFromWindow ? <p>Window: {lastHeardFromWindow.id}, last PONG'ed at: {lastHeardFromWindow.at.toISOString()}</p> : null}
-      {iframeLocation === "remote" && lastHeardFromWindow && lastPolledAt && lastHeardFromWindow.at.valueOf() + 10000 < lastPolledAt.valueOf() ? <p><b>WINDOW GONE MISSING?</b></p> : null}
-      <p>ActiveRemoteCount: {activeRemotesCount}</p>
+      {iframeLocation === "remote" && lastHeardFromWindow ? <p>{lastHeardFromWindow.toISOString()}</p> : null}
       <p>current href: {window.location.href}</p>
       <p>hostUrl: {hostUrl}</p>
     </>

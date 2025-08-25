@@ -36,7 +36,6 @@ const App: FC = () => {
   const [iframeLocation, setIframeLocation] = useState<HubspotCTILocation>();
   const [iframeUrl, setIframeUrl] = useState<string>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [hostUrl, setHostUrl] = useState<string>();
   const [lastHeardFromWindow, setLastHeardFromWindow] = useState<Date>();
   
   useEffect(() => {
@@ -176,10 +175,6 @@ const App: FC = () => {
             console.log(event);
             return;
           }
-          
-          if(eventParseResult.data.hostUrl){
-            setHostUrl(eventParseResult.data.hostUrl);
-          }
 
           sourceLocation = eventParseResult.data.iframeLocation;
           setIframeLocation(sourceLocation);
@@ -236,11 +231,8 @@ const App: FC = () => {
       <h1>Twilio Flex CTI</h1>
       <p>status: <b>{status}</b></p>
       {errorMessage ? <p>errorMessage: {errorMessage}</p> : null}
-      <p>iframeLocation: <b>{iframeLocation}</b></p>
-      {iframeLocation === "remote" && !lastHeardFromWindow ? <p>Window Not Connected</p> : null}
-      {iframeLocation === "remote" && lastHeardFromWindow ? <p>{lastHeardFromWindow.toISOString()}</p> : null}
-      <p>current href: {window.location.href}</p>
-      <p>hostUrl: {hostUrl}</p>
+      {iframeLocation === "remote" && !lastHeardFromWindow ? <p>Window Not Sent Any Messages</p> : null}
+      {iframeLocation === "remote" && lastHeardFromWindow ? <p>Window Sent Last Message At: {lastHeardFromWindow.toISOString()}</p> : null}
     </>
   );
 }

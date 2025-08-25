@@ -2,6 +2,15 @@ import { type FC, createContext, useEffect, useState } from "react";
 import { FlexEvent, HubspotEventSchema } from "shared";
 import { logToConsole } from "../utils";
 import React from "react";
+import { ITask, Manager } from "@twilio/flex-ui";
+import { z } from "zod";
+
+const VoiceTaskAttributesSchema = z.object({
+    call_sid: z.string().regex(/^CA[0-9a-zA-Z]{32}$/),
+    from: z.string(),
+    to: z.string(),
+    direction: z.string()
+});
 
 type HubspotCTIStatus = "pending"|"ready"|"error";
 interface IHubspotCTI {
@@ -46,8 +55,52 @@ export const HubspotCTIProvider: FC<{hubspotCtiHostOrigin: string}> = ({hubspotC
             event: "PluginLoaded"
         });
 
+        const taskAcceptedListener = (task:ITask): void => {
+            if(task.taskChannelUniqueName !== "voice") return;
+            const parseAttributesResult = VoiceTaskAttributesSchema.safeParse(task.attributes);
+            if(!parseAttributesResult.success){
+                console.warn("failed to parse voice task attributes");
+                console.warn(parseAttributesResult.error);
+                return;
+            }
+            const voiceAttributes = parseAttributesResult.data;
+            sendEvent({
+                event: "IncomingCall",
+                createEngagement: true,
+                callDetails: {
+                    callSid:  voiceAttributes.call_sid,
+                    fromNumber: voiceAttributes.from,
+                    toNumber: voiceAttributes.to,
+                    callStartTime: task.dateCreated
+                }
+            });
+        };
+
+        const taskCompletedListener = (task: ITask) => {
+            if(task.taskChannelUniqueName !== "voice") return;
+            const parseAttributesResult = VoiceTaskAttributesSchema.safeParse(task.attributes);
+            if(!parseAttributesResult.success){
+                console.warn("failed to parse voice task attributes");
+                console.warn(parseAttributesResult.error);
+                return;
+            }
+            const voiceAttributes = parseAttributesResult.data;
+            sendEvent({
+                event: "CallEnded",
+                callSid: voiceAttributes.call_sid,
+                endedReason: "COMPLETED"
+            });
+        }
+
+        const manager = Manager.getInstance();
+        manager.events.addListener("taskAccepted", taskAcceptedListener);
+        manager.events.addListener("taskCompleted", taskCompletedListener);
+
+
         return () => {
             window.removeEventListener("message", hubspotEventListener);
+            manager.events.removeListener("taskAccepted", taskAcceptedListener);
+            manager.events.removeListener("taskCompleted", taskCompletedListener);
         }
     }, [hubspotCtiHostOrigin]);
     

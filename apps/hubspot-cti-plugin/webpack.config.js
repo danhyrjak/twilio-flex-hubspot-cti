@@ -13,9 +13,5 @@ module.exports = (config, { isProd, isDev, isTest }) => {
     })
   );
   config.resolve.symlinks = true;
-  // config.module.rules.push({
-  //   test: "/\.(png|jp(e*)g|svg|gif)$/",
-  //   type: "asset/resource",
-  // });
   return config;
 }

@@ -11,7 +11,8 @@ export const HubspotCTIStatusButton: FC = () => {
     <Tooltip text={`Hubspot CTI Status: ${cti.status}`}>
         <IconButton 
             icon={<HubspotIcon/>}
-            //icon="Agent"
+            size="small"
+            style={{marginRight: "15px"}}
             onClick={() => {
                 window.alert(`Hubspot CTI Status: ${cti.status}`);
             }}

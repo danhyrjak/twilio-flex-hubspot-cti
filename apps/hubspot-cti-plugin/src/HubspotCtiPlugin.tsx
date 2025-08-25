@@ -61,7 +61,7 @@ export default class HubspotCtiPlugin extends FlexPlugin {
     //add status button to header
     flex.MainHeader.Content.add(<HubspotCTIStatusButton key="hubspot-cti-status-button"/>, {
       align: "end",
-      sortOrder: 1
+      sortOrder: 5
     });
   }
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import CallingExtensions from "@hubspot/calling-extensions-sdk";
 import { useEffect, useRef, useState, type FC } from 'react';
 import { FlexEventSchema, type HubspotEvent } from "shared";
@@ -11,15 +12,21 @@ const EnvSchema = z.object({
 const HubspotCTILocationSchema = z.literal("window").or(z.literal("remote"));
 type HubspotCTILocation = z.infer<typeof HubspotCTILocationSchema>;
 
-const BroadcastOnlyEventSchema = z.object({
-  event: z.literal("RemoteReady")
-}).or(z.object({
+const RemoteReadySchema = z.object({event: z.literal("RemoteReady")});
+
+const WindowStateSchema = z.object({
+  status: z.literal("unavaliable").or(z.literal("avaliable")).or(z.literal("oncall")),
+  callSid: z.string().optional(),
+  callDirection: z.literal("incoming").or(z.literal("outgoing")).optional()
+});
+type WindowState = z.infer<typeof WindowStateSchema>;
+
+const WindowStatusUpdateSchema = z.object({
   event: z.literal("WindowStatusUpdate"),
-  data: z.object({
-    status: z.boolean()
-  })
-}));
-const BroadcastEventSchema = FlexEventSchema.or(BroadcastOnlyEventSchema);
+  info: WindowStateSchema
+});
+
+const BroadcastEventSchema = RemoteReadySchema.or(WindowStatusUpdateSchema).or(FlexEventSchema);
 type BroadcastEvent = z.infer<typeof BroadcastEventSchema>;
 
 const OnReadyEventSchema = z.object({
@@ -30,13 +37,28 @@ const OnReadyEventSchema = z.object({
     userId: z.number()
 });
 
+const OnCallerIdMatchSucceededSchema = z.object({
+  callId: z.coerce.number(),
+  callerIdMatches: z.array(z.object({
+    callerIdType: z.string(),
+    email: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    objectCoordinates: z.object({
+      objectId: z.coerce.number(),
+      objectTypeId: z.literal("0-1").or(z.literal("0-2")),
+      portalId: z.coerce.number()
+    })
+  }))
+});
+
 const App: FC = () => {
   const [status, setStatus] = useState<"pending"|"ready"|"error">("pending");
   const [errorMessage, setErrorMessage] = useState("");
   const [iframeLocation, setIframeLocation] = useState<HubspotCTILocation>();
   const [iframeUrl, setIframeUrl] = useState<string>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [lastHeardFromWindow, setLastHeardFromWindow] = useState<Date>();
+  const [latestUpdateFromWindow, setLatestUpdateFromWindow] = useState<{recievedAt: Date, info: WindowState}>();
   
   useEffect(() => {
     const envParseResult = EnvSchema.safeParse(import.meta.env);
@@ -48,8 +70,26 @@ const App: FC = () => {
     }
     const env = envParseResult.data;
     let sourceLocation: HubspotCTILocation|undefined;
+    let currentState: WindowState|undefined;
+    const callSidToEngagementMap: Record<string, string> = {};
     const bc = new BroadcastChannel("twilio-flex-hubspot-cti");
     
+    const broadcastWindowStatusUpdate = () => {
+      if(!currentState){
+        return;
+      }
+      const event: BroadcastEvent = {
+        event: "WindowStatusUpdate",
+        info: currentState
+      };
+      bc.postMessage(event);
+    }
+
+    const updateCurrentStateAndBroadcastIt = (updatedState: WindowState) => {
+      currentState = {...updatedState};
+      broadcastWindowStatusUpdate();
+    } 
+
     const broadcastEvent = (event: BroadcastEvent) => {
       bc.postMessage(event);
     }
@@ -67,25 +107,20 @@ const App: FC = () => {
           if(sourceLocation !== "window"){
             return;
           }
-          broadcastEvent({
-            event: "WindowStatusUpdate",
-            data: {
-              status: true
-            }
-          });
+          broadcastWindowStatusUpdate();
           return;
         }
         case "WindowStatusUpdate": {
           if(sourceLocation !== "remote"){
             return;
           }
-          setLastHeardFromWindow(new Date());
+          setLatestUpdateFromWindow({recievedAt: new Date(), info: e.info});
           return;
         }
         default: {
-          console.warn("broadcast event not handled: ", e);
-          //const exhaustiveCheck: never = e;
-          //console.error("unhandled broadvsast event type", exhaustiveCheck);
+          console.log(`[${new Date()}] - event recieved: ${e.event}`);
+          console.log(e);
+          return;
         }
       }
     };
@@ -124,11 +159,43 @@ const App: FC = () => {
             callStartTime: parsedEventResult.data.callDetails.callStartTime.valueOf(),
             createEngagement: true
           });
+          updateCurrentStateAndBroadcastIt({
+            status: "oncall",
+            callDirection: "incoming",
+            callSid: parsedEventResult.data.callDetails.callSid
+          });
           return;
         }
-      default:
-        console.log(`[${new Date().toISOString()}] - ${parsedEventResult.data.event} recieved!`)
-          
+        case "UserLoggedIn":
+        case "UserAvailable": {
+          updateCurrentStateAndBroadcastIt({
+            status: "avaliable"
+          });
+          return;
+        }
+        case "UserLoggedOut":
+        case "UserUnavailable": {
+          updateCurrentStateAndBroadcastIt({
+            status: "unavaliable"
+          });
+          return;
+        }
+        case "CallEnded": {
+          const engagementId = callSidToEngagementMap[parsedEventResult.data.callSid];
+          cti.callCompleted({
+            externalCallId: parsedEventResult.data.callSid,
+            engagementId
+          });
+          updateCurrentStateAndBroadcastIt({
+            status: "avaliable"
+          });
+          return;
+        }
+        default: {
+          const exhaustiveCheck: never = parsedEventResult.data;
+          console.error("event not handled", exhaustiveCheck);
+          return;
+        }
       }
     }
 
@@ -141,7 +208,21 @@ const App: FC = () => {
         },
         onCallerIdMatchSucceeded: (event: unknown) => {
             console.log(`${new Date().toISOString()} onCallerIdMatchSucceeded fired`);
-            console.log(event);
+            const eventParseResult = OnCallerIdMatchSucceededSchema.safeParse(event);
+            if(!eventParseResult.success){
+              console.warn("failed to parse event schema");
+              console.warn(eventParseResult.error);
+              console.log(event);
+              return;
+            }
+            if(eventParseResult.data.callerIdMatches.length === 0){
+              console.warn("no matches returned");
+              return;
+            }
+            console.log(`navigating to ${eventParseResult.data.callerIdMatches[0].callerIdType} - ${eventParseResult.data.callerIdMatches[0].objectCoordinates.objectId}`);
+            cti.navigateToRecord({
+              objectCoordinates: eventParseResult.data.callerIdMatches[0].objectCoordinates
+            });
          },
         onCreateEngagementFailed: (event: unknown) => { 
           console.log(`${new Date().toISOString()} onCreateEngagementFailed fired`);
@@ -195,8 +276,8 @@ const App: FC = () => {
             case "remote": {
               broadcastEvent({event: "RemoteReady"});
               cti.resizeWidget({
-                width: 565,
-                height: 430
+                width: 450,
+                height: 225
               });
               return;
             }
@@ -228,11 +309,17 @@ const App: FC = () => {
 
   return (
     <>
-      <h1>Twilio Flex CTI</h1>
-      <p>status: <b>{status}</b></p>
-      {errorMessage ? <p>errorMessage: {errorMessage}</p> : null}
-      {iframeLocation === "remote" && !lastHeardFromWindow ? <p>Window Not Sent Any Messages</p> : null}
-      {iframeLocation === "remote" && lastHeardFromWindow ? <p>Window Sent Last Message At: {lastHeardFromWindow.toISOString()}</p> : null}
+      <h2>Twilio Flex CTI</h2>
+      <p>Please use the CTI Window to interact <br/>with Voice & Messaging Tasks</p>
+      {/* <p>Status: <b>{status}</b> / <b>{latestUpdateFromWindow?.info.status}</b></p>
+      {errorMessage ? <p>Error Message: {errorMessage}</p> : null}
+      {iframeLocation === "remote" && latestUpdateFromWindow ? 
+      <p>Last Update Recieved At: {latestUpdateFromWindow.recievedAt.toISOString()}
+        <br/>
+        <code>
+          {JSON.stringify(latestUpdateFromWindow.info)}
+        </code>
+      </p> : null} */}
     </>
   );
 }

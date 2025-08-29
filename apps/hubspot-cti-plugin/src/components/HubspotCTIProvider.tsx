@@ -16,6 +16,8 @@ type HubspotCTIStatus = "pending"|"ready"|"error";
 interface IHubspotCTI {
     readonly status: HubspotCTIStatus;
     readonly errorMessage?: string;
+    readonly outgoingRequest?: string;
+    clearOutgoingRequest: () => void;
 }
 
 export const HubspotCTIContext = createContext<IHubspotCTI|undefined>(undefined);
@@ -23,6 +25,7 @@ export const HubspotCTIProvider: FC<{hubspotCtiHostOrigin: string}> = ({hubspotC
     
     const [status, setStatus] = useState<HubspotCTIStatus>("pending");
     const [errorMessage, setErrorMessage] = useState<string>();
+    const [outgoingRequest, setOutgoingRequest] = useState<string>();
     
     useEffect(() => {
         const sendEvent = (event: FlexEvent): void => {
@@ -43,6 +46,8 @@ export const HubspotCTIProvider: FC<{hubspotCtiHostOrigin: string}> = ({hubspotC
             switch(eventParseResult.data.event){
                 case "PluginLoadedEventReceived": {
                     setStatus("ready");
+                    //TODO: make this real, i.e. trigger on event passed over from HubSpot
+                    setOutgoingRequest("+447776835151");
                     sendEvent({
                         event: "UserLoggedIn"
                     });
@@ -107,7 +112,9 @@ export const HubspotCTIProvider: FC<{hubspotCtiHostOrigin: string}> = ({hubspotC
     return (
         <HubspotCTIContext.Provider value={{
             status,
-            errorMessage
+            errorMessage,
+            outgoingRequest,
+            clearOutgoingRequest: () => setOutgoingRequest(undefined)
         }}>
             {children}
         </HubspotCTIContext.Provider>

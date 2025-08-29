@@ -1,3 +1,4 @@
+import { OutboundModal } from "./OutboundModal";
 import { IconButton } from "@twilio/flex-ui";
 import { Tooltip } from "@twilio-paste/core";
 import { HubspotIcon } from "./HubspotIcon";
@@ -8,6 +9,8 @@ export const HubspotCTIStatusButton: FC = () => {
     const cti = useHubspotCTI();
 
     return (
+    <>
+    <OutboundModal/>
     <Tooltip text={`Hubspot CTI Status: ${cti.status}`}>
         <IconButton 
             icon={<HubspotIcon/>}
@@ -18,5 +21,6 @@ export const HubspotCTIStatusButton: FC = () => {
             }}
         />
     </Tooltip>
+    </>
     );
 }
